@@ -7,5 +7,6 @@ $ ansible-playbook create_ec2_instace.yml <BR>
 this will create and populate the inventory.yml file with the public DNS of the instance <BR>
 
 $ansible-playbook setup_oc_cluster_up.yml -i inventory.yml  --key-file < path to your ssh key file> <BR>
+  This playbook will register the RHEL instance with the subscription manager, download & install necessary RPMs and other software (eg docker), configure docker to allow insecure registries, configure the RHEL firewall, start all necessary daemons and create the oc cluster up startscript to allow a publicly routable IP as well as storing the state during openshift restarts.
 
 config options and description are in the header of the file.
