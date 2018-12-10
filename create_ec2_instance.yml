@@ -1,0 +1,58 @@
+---
+- name: Multi purpose EC2 playbook 
+  hosts: localhost #newly created and stored into inventory.yml
+  gather_facts: False
+  vars:
+    vm_count: 1 #defaults to 1
+    vpc_subnet_id: 'subnet-idxxxxx' #your pre-configured AWS subnet 
+    my_aws_access_key: "" #your AWS access key
+    my_aws_secret_key: "" #your AWS secret
+    key_name: keyname #your ssh key name
+    instance_name: "oc cluster-up instance" #the tag you want your instance to be named in the AWS console
+    group_id: "" #your pre-configured security group in AWS enabling SSH, HTTP/80, HTTS/8443
+    #further configurations below
+
+  tasks:
+  # https://aws.amazon.com/ec2/instance-types/
+  # https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/instance-types.html
+  - name: Create RHEL instance in ec2
+    ec2:
+      image: ami-1987757b 
+      instance_type: t2.medium
+      aws_access_key: "{{ my_aws_access_key }}"
+      aws_secret_key: "{{ my_aws_secret_key }}"
+      key_name: "{{ key_name }}"
+      region: 'ap-southeast-2'
+      wait: yes 
+      count: "{{ vm_count|int }}"
+      instance_tags:
+        purpose: oc_cluster_up 
+        Name: "{{ instance_name }}"
+      vpc_subnet_id: "subnet-idxxxx" #subnet_id
+      assign_public_ip: yes
+      group: "{{ group_id }}"
+    register: ec2
+
+  - name: Create inventory.yml file with the instance public ip
+    lineinfile:
+      path: "./inventory.yml"
+      backup: yes
+      create: yes
+      line: "{{ item.public_dns_name }}"
+    with_items: "{{ ec2.instances }}"
+
+  - name: Wait for SSH to come up
+    wait_for:
+      host: "{{ item.public_dns_name }}"
+      port: 22
+      delay: 60
+      timeout: 120
+      state: started
+    with_items: "{{ ec2.instances }}"
+
+
+
+  
+  
+
+  
