@@ -1,0 +1,119 @@
+---
+- name: setup and start oc cluster up on RHEL 7.x
+  hosts: all
+  remote_user: ec2-user
+  become: yes
+  gather_facts: yes
+  vars:
+    vm_count: 1 #defaults to 1
+    my_aws_access_key: ""  #your aws access key
+    my_aws_secret_key: "" #your aws secret key
+    key_name: key_aspanner #key name on your host eg secret key
+    access_rht_com_username : "user" #your user name registed to the Red Hat Subscription Manager
+    access_rht_com_password : "password" #your Red Hat password
+    openshift_client_url: "http://mirror.openshift.com/pub/openshift-v3/clients/3.9.43/linux/oc.tar.gz" #URL to openshift client
+
+  tasks: 
+  - name: unregister & remove subs first
+    redhat_subscription:
+      state: absent 
+      
+  - name: Setup Red Hat subscription manager
+    redhat_subscription:
+      auto_attach: yes
+      username: "{{ access_rht_com_username }}"
+      password: "{{ access_rht_com_password }}"
+      state: present 
+
+  - name: repository manager enabled - install server rpms
+    rhsm_repository:
+      name: rhel-7-server-optional-rpms
+      name: rhel-7-server-rpms
+      name: rhel-7-server-extras-rpms
+
+  - name: install docker dependencies
+    yum: 
+      name: device-mapper-libs
+      name: device-mapper-event-libs
+      name: wget
+      state: installed
+
+  - name: install firewalld 
+    yum: 
+        name: firewalld
+        state: installed      
+
+  - name: firewalld - start service
+    service:
+      name: firewalld
+      state: restarted
+      enabled: yes 
+
+  - name: configure RHEL firewall - add port 80
+    command: firewall-cmd --zone=public --add-port=80/tcp --permanent
+
+  - name: configure RHEL firewall - add port 8443
+    command: firewall-cmd --zone=public --add-port=8443/tcp --permanent
+
+  - name: configure RHEL firewall - reload rules
+    command: firewall-cmd --reload
+    tags: firewall
+
+  - name: install docker 
+    yum: 
+        name: docker
+        state: installed
+
+  - name: start & autostart enable docker service
+    service: 
+      name: docker
+      state: started
+      enabled: yes
+
+  - name: untar
+    unarchive:
+      src: "{{ openshift_client_url }}"
+      dest: /usr/bin
+      remote_src: yes
+    tags: untar
+
+  - name: enable insecure registries
+    blockinfile:
+      path: "/etc/docker/daemon.json"
+      content: |
+        {
+          "insecure-registries": [
+          "172.30.0.0/16"
+          ]
+        }
+      backup: yes
+      create: no
+      state: present
+    tags: config_registries
+
+  - name: reload daemons
+    command: sudo systemctl daemon-reload
+    command: sudo systemctl restart docker
+
+  - name: create start_oc_cluster script
+    blockinfile:
+      path: "./start_oc_cluster_with_publicIP"
+      create: yes
+      block: |
+        oc cluster up \
+          --public-hostname="{{ inventory_hostname }}" \
+          --routing-suffix="{{ inventory_hostname }}.nip.io" \
+          --host-data-dir='/home/ec2-user/persistence/data' \
+          --host-config-dir='/home/ec2-user/persistence/config' \
+          --skip-registry-check=true \
+          --use-existing-config=true
+      state: present
+      mode: 0755
+    tags: startupscript
+    
+ 
+      
+
+
+    
+    
