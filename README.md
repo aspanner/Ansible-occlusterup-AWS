@@ -2,6 +2,7 @@ Ansible playbooks to create an EC2 RHEL 7.x instance downloading and installing 
 with a public IP
 
 Usage:
+
 $ ansible-playbook create_ec2_instace.yml 
 this will create and populate the inventory.yml file with the public DNS of the instance
 
